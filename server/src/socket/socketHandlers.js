@@ -145,6 +145,10 @@ If calculating correlations, use only numeric columns (df.select_dtypes(include=
               code: generatedCode,
               data: result.text || "No output",
               plot: result.plot || null,
+              plots: result.plots || (result.plot ? [result.plot] : []),
+              snapshot: result.snapshot || null,
+              snapshots:
+                result.snapshots || (result.snapshot ? [result.snapshot] : []),
               message: "Analysis completed successfully!",
             });
           }

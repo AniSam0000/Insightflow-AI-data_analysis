@@ -58,6 +58,22 @@ def run_code(queue, code, file_path):
             "df": df
         }
 
+        def build_snapshot():
+            try:
+                return df.head().to_string()
+            except Exception:
+                return str(df.head())
+
+        plot_snapshots = []
+        original_show = plt.show
+
+        def tracked_show(*args, **kwargs):
+            if len(plot_snapshots) < 5:
+                plot_snapshots.append(build_snapshot())
+            return original_show(*args, **kwargs)
+
+        plt.show = tracked_show
+
         # Basic safety filter
         blocked = ["import os", "import sys", "subprocess", "open(", "__import__", "eval(", "exec("]
         for word in blocked:
@@ -70,7 +86,10 @@ def run_code(queue, code, file_path):
                 return
 
         # Execute code
-        safe_exec(code, local_vars)
+        try:
+            safe_exec(code, local_vars)
+        finally:
+            plt.show = original_show
 
         # Get output
         output_text = output_buffer.getvalue().strip()
@@ -84,16 +103,34 @@ def run_code(queue, code, file_path):
 
         # Handle plots
         plot_base64 = None
-        if plt is not None and plt.get_fignums():
+        plots_base64 = []
+        figure_numbers = plt.get_fignums() if plt is not None else []
+        for figure_number in figure_numbers[:5]:
+            figure = plt.figure(figure_number)
             img_buffer = io.BytesIO()
-            plt.savefig(img_buffer, format="png", bbox_inches="tight")
+            figure.savefig(img_buffer, format="png", bbox_inches="tight")
             img_buffer.seek(0)
-            plot_base64 = base64.b64encode(img_buffer.read()).decode()
+            plots_base64.append(base64.b64encode(img_buffer.read()).decode())
+
+        if plots_base64:
+            plot_base64 = plots_base64[0]
             plt.close("all")
+
+        # Ensure every plot has a matching snapshot
+        figure_numbers = plt.get_fignums() if plt is not None else []
+        required_snapshot_count = min(len(figure_numbers), 5)
+        while len(plot_snapshots) < required_snapshot_count:
+            plot_snapshots.append(build_snapshot())
+
+        if not plot_snapshots:
+            plot_snapshots = [build_snapshot()]
 
         queue.put({
             "text": output_text,
             "plot": plot_base64,
+            "plots": plots_base64,
+            "snapshot": plot_snapshots[0],
+            "snapshots": plot_snapshots[:5],
             "error": None
         })
 
@@ -127,7 +164,10 @@ def execute_code(code: str, file_path: str, timeout=120):
 
     # Return result
     if not queue.empty():
-        return queue.get()
+        result = queue.get()
+        if result.get("plots") and not result.get("plot"):
+            result["plot"] = result["plots"][0]
+        return result
     else:
         return {
             "text": "",

@@ -125,6 +125,14 @@ export function useDashboardAnalysis() {
                 code: event.code || current?.code || "",
                 data: event.data,
                 plot: event.plot || null,
+                plots: event.plots || (event.plot ? [event.plot] : []),
+                snapshot: event.snapshot || current?.snapshot || null,
+                snapshots:
+                  event.snapshots ||
+                  (event.snapshot
+                    ? [event.snapshot]
+                    : current?.snapshots || []),
+                imageUrl: event.imageUrl || current?.imageUrl || null,
               }));
               break;
             case "executionError":

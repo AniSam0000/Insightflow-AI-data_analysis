@@ -21,6 +21,52 @@ export default function RealtimeResult({
       : JSON.stringify(response.data, null, 2)
     : "";
 
+  const plots = (
+    response?.plots?.length
+      ? response.plots
+      : response?.plot
+        ? [response.plot]
+        : []
+  )
+    .slice(0, 5)
+    .map((plot) =>
+      plot.startsWith("http") ? plot : `data:image/png;base64,${plot}`,
+    );
+
+  const snapshots = response?.snapshots?.length
+    ? response.snapshots
+    : response?.snapshot
+      ? [response.snapshot]
+      : [];
+
+  const handleDownloadImage = async (imageSrc, index) => {
+    if (!imageSrc) return;
+
+    try {
+      const response = await fetch(imageSrc);
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `analysis-plot-${index + 1}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(objectUrl);
+    } catch {
+      const link = document.createElement("a");
+      link.href = imageSrc;
+      link.download = `analysis-plot-${index + 1}.png`;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+  };
+
   return (
     <div
       className={`col-span-1 lg:col-span-2 rounded-2xl border ${isDark ? "border-white/10 bg-white/[0.05]" : "border-blue-200 bg-white shadow-lg"} p-6 backdrop-blur-xl`}
@@ -61,8 +107,12 @@ export default function RealtimeResult({
                 >
                   Generated Code:
                 </h3>
-                <div className={`rounded-lg border overflow-hidden shadow-lg ${isDark ? "border-white/10 bg-slate-900" : "border-blue-300 bg-slate-50"}`}>
-                  <pre className={`p-4 font-mono text-sm leading-relaxed overflow-x-auto ${isDark ? "text-slate-100" : "text-slate-900"}`}>
+                <div
+                  className={`rounded-lg border overflow-hidden shadow-lg ${isDark ? "border-white/10 bg-slate-900" : "border-blue-300 bg-slate-50"}`}
+                >
+                  <pre
+                    className={`p-4 font-mono text-sm leading-relaxed overflow-x-auto ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                  >
                     <code>{response.code}</code>
                   </pre>
                 </div>
@@ -102,21 +152,57 @@ export default function RealtimeResult({
               </div>
             )}
 
-            {response.plot && (
+            {plots.length > 0 && (
               <div>
-                <h3
-                  className={`mb-3 font-bold ${isDark ? "text-warm-200" : "text-slate-900"}`}
-                >
-                  Plot:
-                </h3>
-                <div
-                  className={`overflow-hidden rounded-lg border p-3 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-blue-200 bg-blue-50"}`}
-                >
-                  <img
-                    src={`data:image/png;base64,${response.plot}`}
-                    alt="Python analysis plot"
-                    className="h-auto w-full rounded-md"
-                  />
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3
+                    className={`font-bold ${isDark ? "text-warm-200" : "text-slate-900"}`}
+                  >
+                    Plots {plots.length > 1 ? `(showing ${plots.length})` : ""}:
+                  </h3>
+
+                  {plots.length > 0 && (
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold ${isDark ? "border-white/10 bg-white/[0.04] text-slate-300" : "border-blue-100 bg-blue-50 text-blue-700"}`}
+                    >
+                      Up to 5 plots
+                    </span>
+                  )}
+                </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  {plots.map((imageSrc, index) => (
+                    <div
+                      key={`${index}-${imageSrc.slice(0, 24)}`}
+                      className={`overflow-hidden rounded-lg border p-3 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-blue-200 bg-blue-50"}`}
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <span
+                          className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}
+                        >
+                          Plot {index + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadImage(imageSrc, index)}
+                          className={`rounded-lg border px-3 py-1 text-xs font-semibold transition ${isDark ? "border-white/10 bg-white/[0.06] text-slate-100 hover:bg-white/[0.12]" : "border-blue-200 bg-white text-blue-700 hover:bg-blue-100"}`}
+                        >
+                          Download
+                        </button>
+                      </div>
+                      <img
+                        src={imageSrc}
+                        alt={`Python analysis plot ${index + 1}`}
+                        className="h-auto w-full rounded-md"
+                      />
+                      {(snapshots[index] || response?.snapshot) && (
+                        <pre
+                          className={`mt-3 rounded-md border p-2 text-xs font-mono ${isDark ? "bg-slate-900 border-white/6 text-slate-300" : "bg-white border-blue-100 text-slate-700"}`}
+                        >
+                          {snapshots[index] || response.snapshot}
+                        </pre>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
