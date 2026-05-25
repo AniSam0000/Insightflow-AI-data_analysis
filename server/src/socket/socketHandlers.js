@@ -144,6 +144,8 @@ If calculating correlations, use only numeric columns (df.select_dtypes(include=
             socket.emit("resultReady", {
               code: generatedCode,
               data: result.text || "No output",
+              dataOutputs:
+                result.data_outputs || (result.text ? [result.text] : []),
               plot: result.plot || null,
               plots: result.plots || (result.plot ? [result.plot] : []),
               snapshot: result.snapshot || null,

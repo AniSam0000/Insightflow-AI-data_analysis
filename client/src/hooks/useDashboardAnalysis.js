@@ -124,6 +124,9 @@ export function useDashboardAnalysis() {
                 ...(current || {}),
                 code: event.code || current?.code || "",
                 data: event.data,
+                dataOutputs:
+                  event.dataOutputs ||
+                  (event.data ? [event.data] : current?.dataOutputs || []),
                 plot: event.plot || null,
                 plots: event.plots || (event.plot ? [event.plot] : []),
                 snapshot: event.snapshot || current?.snapshot || null,

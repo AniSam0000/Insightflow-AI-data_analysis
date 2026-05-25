@@ -14,12 +14,13 @@ export default function RealtimeResult({
   progress,
   loading,
 }) {
-  const latestStage = progress.length ? progress[progress.length - 1] : null;
-  const outputText = response?.data
-    ? typeof response.data === "string"
-      ? response.data
-      : JSON.stringify(response.data, null, 2)
-    : "";
+  const latestStage = progress?.length ? progress[progress.length - 1] : null;
+
+  const dataOutputs = response?.dataOutputs?.length
+    ? response.dataOutputs
+    : response?.data
+      ? [response.data]
+      : [];
 
   const plots = (
     response?.plots?.length
@@ -29,22 +30,18 @@ export default function RealtimeResult({
         : []
   )
     .slice(0, 5)
-    .map((plot) =>
-      plot.startsWith("http") ? plot : `data:image/png;base64,${plot}`,
+    .map((p) =>
+      p && typeof p === "string" && p.startsWith("http")
+        ? p
+        : `data:image/png;base64,${p}`,
     );
-
-  const snapshots = response?.snapshots?.length
-    ? response.snapshots
-    : response?.snapshot
-      ? [response.snapshot]
-      : [];
 
   const handleDownloadImage = async (imageSrc, index) => {
     if (!imageSrc) return;
 
     try {
-      const response = await fetch(imageSrc);
-      const blob = await response.blob();
+      const res = await fetch(imageSrc);
+      const blob = await res.blob();
       const objectUrl = window.URL.createObjectURL(blob);
 
       const link = document.createElement("a");
@@ -135,77 +132,72 @@ export default function RealtimeResult({
               </div>
             )}
 
-            {response.data && (
-              <div>
-                <h3
-                  className={`mb-3 font-bold ${isDark ? "text-warm-200" : "text-slate-900"}`}
-                >
-                  Python Output:
-                </h3>
-                <div className="overflow-x-auto pb-2">
-                  <pre
-                    className={`min-w-max whitespace-pre rounded-lg border p-4 font-mono text-sm ${isDark ? "border-white/10 bg-white/[0.03] text-slate-200" : "border-blue-200 bg-white text-slate-800"}`}
-                  >
-                    {outputText}
-                  </pre>
-                </div>
-              </div>
-            )}
+            {/* Interleave outputs and images: Output 1 -> Plot 1 -> Output 2 -> Plot 2 ... */}
+            {(() => {
+              const outputs = dataOutputs || [];
+              const imgs = plots || [];
+              const total = Math.max(outputs.length, imgs.length);
 
-            {plots.length > 0 && (
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-3">
+              if (total === 0) return null;
+
+              return (
+                <div>
                   <h3
-                    className={`font-bold ${isDark ? "text-warm-200" : "text-slate-900"}`}
+                    className={`mb-3 font-bold ${isDark ? "text-warm-200" : "text-slate-900"}`}
                   >
-                    Plots {plots.length > 1 ? `(showing ${plots.length})` : ""}:
+                    Results
                   </h3>
+                  <div className="space-y-6">
+                    {Array.from({ length: total }).map((_, i) => (
+                      <div key={`block-${i}`} className="space-y-3">
+                        {outputs[i] !== undefined && (
+                          <div className="overflow-x-auto">
+                            <div
+                              className={`mb-2 text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                            >
+                              Output {i + 1}
+                            </div>
+                            <pre
+                              className={`min-w-max whitespace-pre rounded-lg border p-4 font-mono text-sm ${isDark ? "border-white/10 bg-white/[0.03] text-slate-200" : "border-blue-200 bg-white text-slate-800"}`}
+                            >
+                              {typeof outputs[i] === "string"
+                                ? outputs[i]
+                                : JSON.stringify(outputs[i], null, 2)}
+                            </pre>
+                          </div>
+                        )}
 
-                  {plots.length > 0 && (
-                    <span
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold ${isDark ? "border-white/10 bg-white/[0.04] text-slate-300" : "border-blue-100 bg-blue-50 text-blue-700"}`}
-                    >
-                      Up to 5 plots
-                    </span>
-                  )}
-                </div>
-                <div className="grid gap-6 md:grid-cols-2">
-                  {plots.map((imageSrc, index) => (
-                    <div
-                      key={`${index}-${imageSrc.slice(0, 24)}`}
-                      className={`overflow-hidden rounded-lg border p-3 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-blue-200 bg-blue-50"}`}
-                    >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <span
-                          className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}
-                        >
-                          Plot {index + 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadImage(imageSrc, index)}
-                          className={`rounded-lg border px-3 py-1 text-xs font-semibold transition ${isDark ? "border-white/10 bg-white/[0.06] text-slate-100 hover:bg-white/[0.12]" : "border-blue-200 bg-white text-blue-700 hover:bg-blue-100"}`}
-                        >
-                          Download
-                        </button>
+                        {imgs[i] !== undefined && (
+                          <div
+                            className={`overflow-hidden rounded-lg border p-3 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-blue-200 bg-blue-50"}`}
+                          >
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <span
+                                className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}
+                              >
+                                Plot {i + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadImage(imgs[i], i)}
+                                className={`rounded-lg border px-3 py-1 text-xs font-semibold transition ${isDark ? "border-white/10 bg-white/[0.06] text-slate-100 hover:bg-white/[0.12]" : "border-blue-200 bg-white text-blue-700 hover:bg-blue-100"}`}
+                              >
+                                Download
+                              </button>
+                            </div>
+                            <img
+                              src={imgs[i]}
+                              alt={`Python analysis plot ${i + 1}`}
+                              className="h-auto w-full rounded-md"
+                            />
+                          </div>
+                        )}
                       </div>
-                      <img
-                        src={imageSrc}
-                        alt={`Python analysis plot ${index + 1}`}
-                        className="h-auto w-full rounded-md"
-                      />
-                      {(snapshots[index] || response?.snapshot) && (
-                        <pre
-                          className={`mt-3 rounded-md border p-2 text-xs font-mono ${isDark ? "bg-slate-900 border-white/6 text-slate-300" : "bg-white border-blue-100 text-slate-700"}`}
-                        >
-                          {snapshots[index] || response.snapshot}
-                        </pre>
-                      )}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {loading &&
               response.code &&

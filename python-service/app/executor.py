@@ -8,6 +8,8 @@ import traceback
 
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg") # Required for headless environments like Docker
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -41,6 +43,7 @@ def run_code(queue, code, file_path):
         # Capture output
         output_buffer = io.StringIO()
         sys.stdout = output_buffer
+        data_outputs = []
 
         # Load dataset based on file extension
         file_ext = file_path.split(".")[-1].lower()
@@ -55,8 +58,39 @@ def run_code(queue, code, file_path):
             "np": np,
             "plt": plt,
             "sns": sns,
-            "df": df
+            "df": df,
         }
+
+        def capture_print(*args, sep=" ", end="\n", file=None, flush=False):
+            text = sep.join(str(arg) for arg in args)
+            target = file if file is not None else output_buffer
+
+            try:
+                target.write(text + end)
+            except Exception:
+                output_buffer.write(text + end)
+
+            if file is None or target is output_buffer:
+                data_outputs.append(text)
+
+            if flush:
+                try:
+                    target.flush()
+                except Exception:
+                    pass
+
+        def capture_display(*objects, sep="\n"):
+            for obj in objects:
+                if hasattr(obj, "to_string"):
+                    rendered = obj.to_string()
+                else:
+                    rendered = str(obj)
+
+                data_outputs.append(rendered)
+                output_buffer.write(rendered + sep)
+
+        local_vars["print"] = capture_print
+        local_vars["display"] = capture_display
 
         def build_snapshot():
             try:
@@ -81,6 +115,7 @@ def run_code(queue, code, file_path):
                 queue.put({
                     "text": "",
                     "plot": None,
+                    "data_outputs": [],
                     "error": f"Blocked unsafe code: {word}"
                 })
                 return
@@ -100,6 +135,9 @@ def run_code(queue, code, file_path):
                 output_text = str(local_vars["result"])
             else:
                 output_text = str(df.head())
+
+        if not data_outputs:
+            data_outputs = [output_text]
 
         # Handle plots
         plot_base64 = None
@@ -127,6 +165,7 @@ def run_code(queue, code, file_path):
 
         queue.put({
             "text": output_text,
+            "data_outputs": data_outputs,
             "plot": plot_base64,
             "plots": plots_base64,
             "snapshot": plot_snapshots[0],
@@ -138,6 +177,7 @@ def run_code(queue, code, file_path):
         queue.put({
             "text": "",
             "plot": None,
+            "data_outputs": [],
             "error": traceback.format_exc()
         })
 
@@ -159,6 +199,7 @@ def execute_code(code: str, file_path: str, timeout=120):
         return {
             "text": "",
             "plot": None,
+            "data_outputs": [],
             "error": f"Execution timed out ({timeout}s limit)"
         }
 
@@ -172,5 +213,6 @@ def execute_code(code: str, file_path: str, timeout=120):
         return {
             "text": "",
             "plot": None,
+            "data_outputs": [],
             "error": "No output returned"
         }

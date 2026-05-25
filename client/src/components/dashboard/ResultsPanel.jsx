@@ -4,6 +4,26 @@ import { json } from "@codemirror/lang-json";
 import { atomone } from "@uiw/codemirror-theme-atomone";
 
 export default function ResultsPanel({ isDark, response }) {
+  const dataOutputs = response?.dataOutputs?.length
+    ? response.dataOutputs
+    : response?.data
+      ? [response.data]
+      : [];
+
+  const outputs = dataOutputs;
+
+  const plots = (
+    response?.plots?.length
+      ? response.plots
+      : response?.plot
+        ? [response.plot]
+        : []
+  ).map((p) =>
+    p && p.startsWith && p.startsWith("http")
+      ? p
+      : `data:image/png;base64,${p}`,
+  );
+
   return (
     <div
       className={`col-span-1 lg:col-span-2 rounded-2xl border ${isDark ? "border-white/10 bg-white/[0.05]" : "border-slate-200 bg-white"} p-6 backdrop-blur-xl`}
@@ -63,31 +83,56 @@ export default function ResultsPanel({ isDark, response }) {
               </div>
             )}
 
-            {response.data && (
-              <div>
-                <h3
-                  className={`mb-3 font-bold ${isDark ? "text-warm-200" : "text-warm-700"}`}
-                >
-                  Results:
-                </h3>
-                <CodeMirror
-                  value={
-                    typeof response.data === "string"
-                      ? response.data
-                      : JSON.stringify(response.data, null, 2)
-                  }
-                  height="auto"
-                  extensions={[json()]}
-                  theme={isDark ? atomone : "light"}
-                  editable={false}
-                  basicSetup={{
-                    lineNumbers: true,
-                    highlightActiveLineGutter: false,
-                    foldGutter: true,
-                  }}
-                />
-              </div>
-            )}
+            {(() => {
+              const outs = outputs || [];
+              const imgs = plots || [];
+              const total = Math.max(outs.length, imgs.length);
+              if (total === 0) return null;
+
+              return (
+                <div>
+                  <h3
+                    className={`mb-3 font-bold ${isDark ? "text-warm-200" : "text-warm-700"}`}
+                  >
+                    Results
+                  </h3>
+                  <div className="space-y-4">
+                    {Array.from({ length: total }).map((_, i) => (
+                      <div key={`res-block-${i}`} className="space-y-3">
+                        {outs[i] !== undefined && (
+                          <div
+                            className={`overflow-x-auto rounded-lg border px-4 py-2 font-mono text-sm whitespace-pre ${isDark ? "border-white/10 bg-white/[0.03] text-slate-200" : "border-slate-200 bg-white text-slate-800"}`}
+                          >
+                            {typeof outs[i] === "string"
+                              ? outs[i]
+                              : JSON.stringify(outs[i], null, 2)}
+                          </div>
+                        )}
+
+                        {imgs[i] !== undefined && (
+                          <div
+                            className={`overflow-hidden rounded-lg border p-3 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-blue-200 bg-blue-50"}`}
+                          >
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <span
+                                className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}
+                              >
+                                Plot {i + 1}
+                              </span>
+                            </div>
+                            <img
+                              src={imgs[i]}
+                              alt={`Result plot ${i + 1}`}
+                              className="h-auto w-full rounded-md"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </>
         ) : (
           <div
